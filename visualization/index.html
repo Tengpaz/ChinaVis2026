@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>京剧主题构成与组合模式可视分析</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ChinaVis 2026 · 京剧剧本主题可视分析</p>
+        <h1>京剧剧本主题构成与组合模式</h1>
+      </div>
+      <p class="source-note">1473 部剧本 · 9 类主题 · LLM 全量分类</p>
+    </header>
+
+    <main>
+      <section class="summary-band" aria-labelledby="summary-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="summary-title">总览</h2>
+            <p>从跨来源剧本中观察主题权重、主题组合与集合差异。</p>
+          </div>
+        </div>
+        <div class="metric-grid" id="metricGrid"></div>
+      </section>
+
+      <section class="control-band" aria-label="筛选条件">
+        <label>
+          <span>检索剧名</span>
+          <input id="searchInput" type="search" placeholder="输入剧名，如 空城计、玉堂春" autocomplete="off" />
+        </label>
+        <label>
+          <span>数据集合</span>
+          <select id="collectionSelect"></select>
+        </label>
+        <label>
+          <span>主题筛选</span>
+          <select id="topicSelect"></select>
+        </label>
+        <button id="resetButton" type="button" title="清除筛选">清除</button>
+      </section>
+
+      <section class="analysis-band two-column" aria-labelledby="topic-title">
+        <div class="visual-panel">
+          <div class="section-heading compact">
+            <div>
+              <h2 id="topic-title">主题总览</h2>
+              <p>总权重表示主题在所有剧目中的累计占比，主导数表示作为第一主题的剧目数量。</p>
+            </div>
+          </div>
+          <div id="topicBars" class="chart-box"></div>
+        </div>
+
+        <div class="visual-panel">
+          <div class="section-heading compact">
+            <div>
+              <h2>主题共现网络</h2>
+              <p>边权来自每部剧主题分布的两两外积累加，越粗表示组合越稳定。</p>
+            </div>
+          </div>
+          <div id="networkChart" class="chart-box network-box"></div>
+        </div>
+      </section>
+
+      <section class="analysis-band" aria-labelledby="heatmap-title">
+        <div class="section-heading compact">
+          <div>
+            <h2 id="heatmap-title">集合主题热力图</h2>
+            <p>行是数据来源或名家剧本集合，列是主题均值；点击单元格可联动筛选。</p>
+          </div>
+          <p class="selection-status" id="selectionStatus"></p>
+        </div>
+        <div id="heatmap" class="heatmap-wrap"></div>
+      </section>
+
+      <section class="analysis-band split-bottom" aria-labelledby="explore-title">
+        <div class="visual-panel">
+          <div class="section-heading compact">
+            <div>
+              <h2 id="explore-title">剧目探索</h2>
+              <p id="playCountText"></p>
+            </div>
+          </div>
+          <div id="playList" class="play-list"></div>
+        </div>
+
+        <aside class="visual-panel" aria-labelledby="snippet-title">
+          <div class="section-heading compact">
+            <div>
+              <h2 id="snippet-title">主题语义与代表片段</h2>
+              <p>用于解释主题标签背后的关键词与剧本语境。</p>
+            </div>
+          </div>
+          <div id="snippetPanel" class="snippet-panel"></div>
+        </aside>
+      </section>
+    </main>
+
+    <div id="tooltip" class="tooltip" role="status" aria-live="polite"></div>
+
+    <script src="./data/vis_data.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
