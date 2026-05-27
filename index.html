@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChinaVis 2026 京剧可视分析作品集</title>
+    <link rel="stylesheet" href="./assets/site.css" />
+  </head>
+  <body>
+    <header class="site-hero">
+      <div class="site-hero__inner">
+        <p class="eyebrow">ChinaVis 2026 · 京剧剧本数据可视分析</p>
+        <h1>京剧数据可视分析作品集入口</h1>
+        <p class="lead">
+          这里汇总各赛题的网页可视化结果。每个赛题保留独立目录，便于后续继续添加数据、脚本、图表和答辩材料；部署到 GitHub Pages 后可从本页进入所有作品。
+        </p>
+      </div>
+    </header>
+
+    <main class="page-main">
+      <div class="toolbar">
+        <div>
+          <h2>赛题导航</h2>
+          <p>已完成的赛题可直接进入交互页面；待完成赛题已预留目录和页面入口。</p>
+        </div>
+      </div>
+
+      <section class="task-grid" aria-label="赛题列表">
+        <a class="task-card is-pending" href="./task-1-1-role-classification/">
+          <div>
+            <div class="status-row">
+              <span class="tag">任务一 · 第 1 题</span>
+              <span class="tag pending">待完成</span>
+            </div>
+            <h3>角色行当归属与角色特征</h3>
+            <p>推断未标注角色的生、旦、净、丑及细分行当，分析角色性别、年龄、身份、性格和表演提示之间的对应模式。</p>
+          </div>
+          <span class="card-action">查看目录</span>
+        </a>
+
+        <a class="task-card is-pending" href="./task-1-2-character-network/">
+          <div>
+            <div class="status-row">
+              <span class="tag">任务一 · 第 2 题</span>
+              <span class="tag pending">待完成</span>
+            </div>
+            <h3>主要角色互动关系网络</h3>
+            <p>识别剧本中主要角色的互动关系，构建角色关系网络，比较历史戏、家庭戏、公案戏等类型的网络结构。</p>
+          </div>
+          <span class="card-action">查看目录</span>
+        </a>
+
+        <a class="task-card" href="./task-1-3-topic-composition/">
+          <div>
+            <div class="status-row">
+              <span class="tag">任务一 · 第 3 题</span>
+              <span class="tag done">已完成</span>
+            </div>
+            <h3>核心主题构成与组合模式</h3>
+            <p>分析 1473 部京剧剧本的 9 类主题权重、集合差异和主题共现结构，探索“历史-战争”“爱情婚姻-家庭”等代表性组合。</p>
+          </div>
+          <span class="card-action">进入可视化</span>
+        </a>
+
+        <a class="task-card is-pending" href="./task-1-4-narrative-structure/">
+          <div>
+            <div class="status-row">
+              <span class="tag">任务一 · 第 4 题</span>
+              <span class="tag pending">待完成</span>
+            </div>
+            <h3>叙事结构与剧情节奏</h3>
+            <p>基于表演形式标记和剧本文本识别剧情阶段，刻画剧情起伏、节奏变化和不同剧目的叙事结构差异。</p>
+          </div>
+          <span class="card-action">查看目录</span>
+        </a>
+
+        <a class="task-card is-pending" href="./task-1-5-integrated-analysis/">
+          <div>
+            <div class="status-row">
+              <span class="tag">任务一 · 第 5 题</span>
+              <span class="tag pending">待完成</span>
+            </div>
+            <h3>角色关系、主题与叙事综合分析</h3>
+            <p>综合人物关系、主题表达与叙事方式，探索三者之间的关联机制、协同演化规律和稳定结构特征。</p>
+          </div>
+          <span class="card-action">查看目录</span>
+        </a>
+
+        <a class="task-card is-pending" href="./task-2-cultural-creative/">
+          <div>
+            <div class="status-row">
+              <span class="tag">任务二</span>
+              <span class="tag pending">待完成</span>
+            </div>
+            <h3>京剧文化数字传承与智能表达</h3>
+            <p>围绕京剧文化传播和人文创意表达，整合剧本文本、开放资料或多媒体素材，形成更具创意的可视化作品。</p>
+          </div>
+          <span class="card-action">查看目录</span>
+        </a>
+      </section>
+
+      <section class="info-panel" aria-labelledby="deploy-title">
+        <h2 id="deploy-title">GitHub Pages 结构约定</h2>
+        <p>根目录的 `index.html` 是总入口。每个赛题目录都保留一个 `index.html`，后续赛题完成后将结果资源放入对应目录，并在本页把状态从“待完成”改为“已完成”。</p>
+        <ul>
+          <li>当前完成页：`task-1-3-topic-composition/index.html`</li>
+          <li>原始实现目录：`visualization/`</li>
+          <li>数据处理说明：`2605_ChinaVis/README.md`</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

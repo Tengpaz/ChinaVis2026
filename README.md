@@ -1,10 +1,14 @@
 # 京剧主题构成与组合模式可视分析
 
-本项目完成 ChinaVis 2026 京剧剧本赛题中“从剧本中提取核心主题，分析不同剧本的主题构成及其组合方式”的可视化部分。网页采用纯静态实现，可直接打开 `visualization/index.html`，不需要安装依赖或启动构建工具。
+本项目用于汇总 ChinaVis 2026 京剧剧本数据可视分析的多个赛题结果。根目录 `index.html` 是 GitHub Pages 总入口；每个赛题在根目录下都有独立目录，便于后续分别存放网页、数据、脚本和答辩材料。
+
+当前已完成的是任务一第三题“从剧本中提取核心主题，分析不同剧本的主题构成及其组合方式”的可视化部分。网页采用纯静态实现，不需要安装依赖或启动构建工具。
 
 ## 如何查看
 
-- 网页入口：`visualization/index.html`
+- 总入口：`index.html`
+- 当前完成赛题入口：`task-1-3-topic-composition/index.html`
+- 当前完成赛题实际页面：`visualization/index.html`
 - 数据说明：`2605_ChinaVis/README.md`
 - 网页数据导出脚本：`visualization/scripts/export_vis_data.py`
 
@@ -65,7 +69,10 @@ python3 visualization/scripts/export_vis_data.py
 
 ```text
 .
+├── index.html                     # GitHub Pages 总入口
 ├── 任务说明.md
+├── assets/
+│   └── site.css                   # 总入口与赛题占位页共用样式
 ├── 2605_ChinaVis/
 │   ├── dataset/                  # 原始 zip 和数据说明表
 │   ├── plays_index.csv            # 剧目索引
@@ -74,6 +81,12 @@ python3 visualization/scripts/export_vis_data.py
 │   ├── topic_cooccur.csv          # 主题共现
 │   ├── topic_snippets.csv         # 代表片段
 │   └── README.md                  # 数据处理说明
+├── task-1-1-role-classification/  # 任务一第 1 题目录
+├── task-1-2-character-network/    # 任务一第 2 题目录
+├── task-1-3-topic-composition/    # 任务一第 3 题入口目录
+├── task-1-4-narrative-structure/  # 任务一第 4 题目录
+├── task-1-5-integrated-analysis/  # 任务一第 5 题目录
+├── task-2-cultural-creative/      # 任务二目录
 └── visualization/
     ├── index.html                 # 静态网页入口
     ├── styles.css                 # 页面样式
