@@ -5,26 +5,234 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>主要角色互动关系网络</title>
     <link rel="stylesheet" href="../assets/site.css" />
+    <style>
+      .controls { display:flex; gap:12px; align-items:center; margin:18px 0; flex-wrap:wrap }
+      .graph-wrap { border:1px solid var(--line); border-radius:8px; background:var(--panel); box-shadow: var(--shadow); padding:12px; }
+      #graph { width:100%; height:640px; display:block; }
+      .info-row { display:flex; gap:14px; align-items:center; color:var(--muted); margin-top:8px }
+      .tooltip-node { position: absolute; pointer-events: none; background: #252629; color: #fff; padding:6px 8px; border-radius:6px; font-size:13px; opacity:0; transition:opacity 120ms; z-index:1000 }
+      .small { font-size:13px; color:var(--muted) }
+      select, input[type=search], button { padding:8px 10px; border-radius:6px; border:1px solid var(--line); background:var(--paper) }
+      .node-label { font-size:12px; pointer-events:none; }
+      .node-label.halo { stroke: #fff; stroke-width:4px; paint-order: stroke; }
+      .legend { font-size:12px; color:var(--muted); }
+      @media (max-width:640px){ #graph{height:420px} }
+    </style>
   </head>
   <body>
     <header class="site-hero">
       <div class="site-hero__inner">
         <p class="eyebrow">任务一 · 第 2 题</p>
         <h1>主要角色互动关系网络</h1>
-        <p class="lead">该赛题目录已预留，用于存放角色抽取、互动关系网络和不同剧目类型网络结构对比结果。</p>
+        <p class="lead">可视化单部剧目的主要角色互动关系；下拉选择剧目并交互过滤。</p>
       </div>
     </header>
-    <main class="page-main placeholder">
-      <div class="placeholder-card">
-        <div class="status-row">
-          <span class="tag pending">待完成</span>
-          <span class="tag">预留目录</span>
-        </div>
-        <p>后续可将本赛题的 `index.html`、脚本、样式和数据文件直接放入此目录。完成后，在根目录入口页中把状态改为“已完成”。</p>
-        <div class="link-row">
+    <main class="page-main">
+      <section class="info-panel">
+        <div class="controls">
+          <label>
+            剧目：
+            <select id="playSelect"></select>
+          </label>
+          <label>
+            检索角色：
+            <input id="searchInput" type="search" placeholder="输入角色名过滤" />
+          </label>
+          <label>
+            链接阈值：
+            <input id="threshold" type="range" min="0" max="10" step="1" value="0" />
+          </label>
+          <button id="resetBtn" type="button">重置视图</button>
           <a class="home-link" href="../">返回总入口</a>
         </div>
-      </div>
+        <div class="info-row">
+          <div id="meta" class="small">加载中…</div>
+        </div>
+      </section>
+
+      <section class="graph-wrap">
+        <svg id="graph" viewBox="0 0 960 640" preserveAspectRatio="xMidYMid meet"></svg>
+        <div id="tooltip" class="tooltip-node" role="status" aria-live="polite"></div>
+      </section>
     </main>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+      const playSelect = document.getElementById('playSelect');
+      const searchInput = document.getElementById('searchInput');
+      const threshold = document.getElementById('threshold');
+      const resetBtn = document.getElementById('resetBtn');
+      const meta = document.getElementById('meta');
+      const tooltip = document.getElementById('tooltip');
+      const svg = d3.select('#graph');
+      const width = 960, height = 640;
+      // edge/node hover colors (defined as constants to avoid runtime errors)
+      const EDGE_DEFAULT_COLOR = '#8aa6b0';
+      const EDGE_HOVER_COLOR = '#4f6f9f';
+      const NODE_HOVER_COLOR = '#c05f7a';
+
+      let rawData = {};
+      let current = null;
+
+      function load() {
+        fetch('./character_network_data.json').then(r=>r.json()).then(data=>{
+          rawData = data;
+          const plays = Object.keys(data).sort((a,b)=>a.localeCompare(b, 'zh'));
+          plays.forEach(name=>{
+            const opt = document.createElement('option'); opt.value=name; opt.textContent=name; playSelect.appendChild(opt);
+          });
+          if(plays.length) playSelect.selectedIndex = 0;
+          updateMeta();
+          renderFor(playSelect.value);
+        }).catch(err=>{
+          meta.textContent = '加载数据失败：' + err.message;
+        });
+      }
+
+      function updateMeta() {
+        const playCount = Object.keys(rawData).length;
+        meta.textContent = `剧目总数 ${playCount}；选择并查看角色互动网络。`;
+      }
+
+      function renderFor(playName) {
+        const entry = rawData[playName];
+        if(!entry){ meta.textContent = '未找到剧目数据'; return; }
+        current = entry;
+        meta.textContent = `${playName} · 角色 ${entry.nodes.length}，关系 ${entry.links.length}`;
+        drawGraph(entry);
+      }
+
+      function drawGraph(entry){
+        svg.selectAll('*').remove();
+        const g = svg.append('g');
+        const linkG = g.append('g').attr('class','links');
+        const nodeG = g.append('g').attr('class','nodes');
+
+        const nodes = entry.nodes.map(d=>Object.assign({}, d));
+        const links = entry.links.map(d=>Object.assign({}, d));
+
+        const maxVal = d3.max(links, d=>d.value) || 1;
+        const minVal = d3.min(links, d=>d.value) || 0;
+        const sortedVals = links.map(d=>d.value).sort((a,b)=>a-b);
+        const medianVal = sortedVals.length ? sortedVals[Math.floor(sortedVals.length/2)] : 0;
+        const linkWidthScale = d3.scaleLinear().domain([minVal, maxVal]).range([1, Math.max(1, (maxVal / maxVal) * 6)]);
+
+        // compute degree (strength) per node
+        const degree = new Map();
+        nodes.forEach(n=> degree.set(n.id, 0));
+        links.forEach(l=>{
+          degree.set(l.source, (degree.get(l.source) || 0) + (l.value||0));
+          degree.set(l.target, (degree.get(l.target) || 0) + (l.value||0));
+        });
+        nodes.forEach(n=> n.degree = degree.get(n.id) || 0);
+
+        const minDeg = d3.min(nodes, d=>d.degree);
+        const maxDeg = d3.max(nodes, d=>d.degree);
+        // smaller node sizes to reduce visual clutter
+        const rScale = d3.scaleSqrt().domain([minDeg || 0, maxDeg || 1]).range([4, 12]);
+          const colorScale = d3.scaleSequential(d3.interpolateViridis).domain([minDeg || 0, maxDeg || 1]);
+
+        // use curved paths for links
+          const link = linkG.selectAll('path').data(links).enter().append('path')
+              .attr('stroke', EDGE_DEFAULT_COLOR)
+          .attr('fill', 'none')
+          .attr('stroke-linecap','round')
+          .attr('stroke-width', d=> linkWidthScale(d.value))
+          .attr('stroke-opacity', 0.8)
+          .attr('data-base-width', d=> linkWidthScale(d.value))
+          .style('transition', 'stroke 160ms ease, stroke-width 160ms ease, stroke-opacity 160ms ease')
+          .on('pointerenter', function(event,d){
+            const s = (d.source && d.source.name) ? d.source.name : d.source;
+            const t = (d.target && d.target.name) ? d.target.name : d.target;
+            tooltip.style.opacity=1; tooltip.innerHTML = `${s} — ${t}：权重 ${d.value}`; moveTooltip(event);
+            const baseW = +this.getAttribute('data-base-width') || 1;
+                d3.select(this).attr('stroke', EDGE_HOVER_COLOR).attr('stroke-opacity',1).attr('stroke-width', Math.max(1, baseW + 2));
+            // dim other links and subtly highlight related nodes (no resizing)
+            link.attr('stroke-opacity', l=> (l===d) ? 1 : 0.12);
+            nodeG.selectAll('g').select('circle').attr('opacity', n=> (n.id===d.source.id || n.id===d.target.id) ? 1 : 0.28);
+          })
+          .on('pointermove', moveTooltip)
+          .on('pointerleave', function(){
+            tooltip.style.opacity=0;
+            const baseW = +this.getAttribute('data-base-width') || 1;
+                d3.select(this).attr('stroke', EDGE_DEFAULT_COLOR).attr('stroke-opacity',0.8).attr('stroke-width', baseW);
+            link.attr('stroke-opacity',0.8);
+            nodeG.selectAll('g').select('circle').attr('opacity',1).attr('stroke-width',1.2);
+          });
+
+        const node = nodeG.selectAll('g').data(nodes).enter().append('g').call(d3.drag()
+          .on('start', dragstarted)
+          .on('drag', dragged)
+          .on('end', dragended)
+        );
+        node.append('circle').attr('r', d=> rScale(d.degree)).attr('data-base-r', d=> rScale(d.degree)).attr('fill', d=> colorScale(d.degree)).attr('stroke', '#fff').attr('stroke-width',1.2);
+        // label with halo stroke for readability
+        node.append('text').attr('class','node-label halo').text(d=>d.name).attr('x',12).attr('y',4).attr('fill','#fff');
+        node.append('text').attr('class','node-label').text(d=>d.name).attr('x',12).attr('y',4).attr('fill','#20242a');
+
+        // build adjacency for hover highlighting
+        const neighbors = new Map();
+        nodes.forEach(n=> neighbors.set(n.id, new Set()));
+        links.forEach(l=>{
+          neighbors.get(l.source).add(l.target);
+          neighbors.get(l.target).add(l.source);
+        });
+
+        node.on('pointerenter', (event,d)=>{
+          tooltip.style.opacity=1; tooltip.innerHTML = `${d.name} · 度数 ${d.degree}`; moveTooltip(event);
+          // highlight
+          node.select('circle').attr('opacity', n=> (n.id===d.id || neighbors.get(d.id).has(n.id)) ? 1 : 0.18);
+              link.attr('stroke-opacity', l=> (l.source.id===d.id || l.target.id===d.id) ? 0.95 : 0.06)
+                .attr('stroke', l=> (l.source.id===d.id || l.target.id===d.id) ? NODE_HOVER_COLOR : EDGE_DEFAULT_COLOR);
+        }).on('pointermove', moveTooltip).on('pointerleave', ()=>{ tooltip.style.opacity=0; node.select('circle').attr('opacity',1); link.attr('stroke-opacity',0.8).attr('stroke','#9aa3ad'); });
+
+        const simulation = d3.forceSimulation(nodes)
+          // increase base distance so links are longer; slightly reduce influence of weight
+          .force('link', d3.forceLink(links).id(d=>d.id).distance(d=> 140 - Math.log((d.value||1)+1)*6 ).strength(0.8))
+          // gentler charge so nodes spread reasonably
+          .force('charge', d3.forceManyBody().strength(-160))
+          .force('center', d3.forceCenter(width/2, height/2))
+          // collision based on node radius
+          .force('collision', d3.forceCollide().radius(d => rScale(d.degree) + 6));
+
+        simulation.on('tick', ()=>{
+          // update curved link paths
+          link.attr('d', d=>{
+            const sx = d.source.x, sy = d.source.y, tx = d.target.x, ty = d.target.y;
+            const dx = tx - sx, dy = ty - sy;
+            const qx = sx + dx/2 + (-dy)*0.12; // control point offset
+            const qy = sy + dy/2 + (dx)*0.12;
+            return `M ${sx} ${sy} Q ${qx} ${qy} ${tx} ${ty}`;
+          });
+          node.attr('transform', d=>`translate(${d.x},${d.y})`);
+        });
+
+        // zoom
+        svg.call(d3.zoom().scaleExtent([0.4, 3]).on('zoom', (event)=>{ g.attr('transform', event.transform); }));
+
+        function dragstarted(event,d){ if(!event.active) simulation.alphaTarget(0.2).restart(); d.fx = d.x; d.fy = d.y; }
+        function dragged(event,d){ d.fx = event.x; d.fy = event.y; }
+        function dragended(event,d){ if(!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }
+
+        // filter and search
+        function applyFilters(){
+          const q = searchInput.value.trim();
+          const thr = Number(threshold.value);
+          node.style('display', d=> q && !d.name.includes(q) ? 'none' : null);
+          link.style('display', d=> d.value < thr ? 'none' : null);
+        }
+
+        searchInput.addEventListener('input', applyFilters);
+        threshold.addEventListener('input', ()=>{ applyFilters(); meta.textContent = `${playSelect.value} · 角色 ${entry.nodes.length}，关系 ${entry.links.length}（阈值 ${threshold.value}）`; });
+        resetBtn.addEventListener('click', ()=>{ searchInput.value=''; threshold.value=0; svg.transition().duration(300).call(d3.zoom().transform, d3.zoomIdentity); applyFilters(); });
+
+        
+      }
+
+      function moveTooltip(event){ tooltip.style.left = (event.clientX + 12) + 'px'; tooltip.style.top = (event.clientY + 12) + 'px'; }
+
+      playSelect.addEventListener('change', ()=> renderFor(playSelect.value));
+      load();
+    </script>
   </body>
 </html>
