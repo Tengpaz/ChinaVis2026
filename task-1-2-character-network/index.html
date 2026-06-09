@@ -47,6 +47,7 @@
         </div>
         <div class="info-row">
           <div id="meta" class="small">加载中…</div>
+          <div id="legend" class="legend" aria-hidden="false"></div>
         </div>
       </section>
 
@@ -73,9 +74,11 @@
 
       let rawData = {};
       let current = null;
+      let activeRelations = new Set();
 
       function load() {
-        fetch('./character_network_data.json').then(r=>r.json()).then(data=>{
+        // 首先尝试加载 enriched 数据文件，失败时回退到未扩展的数据
+        fetch('./character_network_data_enriched.json').then(r=>r.json()).then(data=>{
           rawData = data;
           const plays = Object.keys(data).sort((a,b)=>a.localeCompare(b, 'zh'));
           plays.forEach(name=>{
@@ -84,8 +87,20 @@
           if(plays.length) playSelect.selectedIndex = 0;
           updateMeta();
           renderFor(playSelect.value);
-        }).catch(err=>{
-          meta.textContent = '加载数据失败：' + err.message;
+        }).catch(()=>{
+          // 回退到原始文件
+          fetch('./character_network_data.json').then(r=>r.json()).then(data=>{
+            rawData = data;
+            const plays = Object.keys(data).sort((a,b)=>a.localeCompare(b, 'zh'));
+            plays.forEach(name=>{
+              const opt = document.createElement('option'); opt.value=name; opt.textContent=name; playSelect.appendChild(opt);
+            });
+            if(plays.length) playSelect.selectedIndex = 0;
+            updateMeta();
+            renderFor(playSelect.value);
+          }).catch(err=>{
+            meta.textContent = '加载数据失败：' + err.message;
+          });
         });
       }
 
@@ -113,6 +128,14 @@
 
         const maxVal = d3.max(links, d=>d.value) || 1;
         const minVal = d3.min(links, d=>d.value) || 0;
+        // 动态设置阈值滑块范围，基于当前剧目的最大边权
+        try {
+          threshold.max = Math.ceil(maxVal);
+          threshold.min = 0;
+          if (Number(threshold.value) > Number(threshold.max)) threshold.value = threshold.max;
+        } catch (e) {
+          // 如果 threshold 不可用则忽略
+        }
         const sortedVals = links.map(d=>d.value).sort((a,b)=>a-b);
         const medianVal = sortedVals.length ? sortedVals[Math.floor(sortedVals.length/2)] : 0;
         const linkWidthScale = d3.scaleLinear().domain([minVal, maxVal]).range([1, Math.max(1, (maxVal / maxVal) * 6)]);
@@ -132,9 +155,18 @@
         const rScale = d3.scaleSqrt().domain([minDeg || 0, maxDeg || 1]).range([4, 12]);
           const colorScale = d3.scaleSequential(d3.interpolateViridis).domain([minDeg || 0, maxDeg || 1]);
 
-        // use curved paths for links
+          // Use relation types: color mapping + legend
+          const relationTypes = Array.from(new Set(links.map(l=>l.relation || '一般互动')));
+          const colorScaleRelations = d3.scaleOrdinal(d3.schemeTableau10).domain(relationTypes);
+          // initialize activeRelations to include all types when first rendered
+          if(activeRelations.size === 0) relationTypes.forEach(t=> activeRelations.add(t));
+
+          // render legend with checkboxes for relation types
+          renderLegend(relationTypes, colorScaleRelations);
+
+          // use curved paths for links
           const link = linkG.selectAll('path').data(links).enter().append('path')
-              .attr('stroke', EDGE_DEFAULT_COLOR)
+            .attr('stroke', d=> colorScaleRelations(d.relation || '一般互动') || EDGE_DEFAULT_COLOR)
           .attr('fill', 'none')
           .attr('stroke-linecap','round')
           .attr('stroke-width', d=> linkWidthScale(d.value))
@@ -144,7 +176,9 @@
           .on('pointerenter', function(event,d){
             const s = (d.source && d.source.name) ? d.source.name : d.source;
             const t = (d.target && d.target.name) ? d.target.name : d.target;
-            tooltip.style.opacity=1; tooltip.innerHTML = `${s} — ${t}：权重 ${d.value}`; moveTooltip(event);
+            const rel = d.relation || '一般互动';
+            const conf = (d.relation_confidence !== undefined) ? ` · 置信度 ${Math.round(d.relation_confidence*100)}%` : '';
+            tooltip.style.opacity=1; tooltip.innerHTML = `${s} — ${t}：${rel}${conf}<br/>权重 ${d.value}`; moveTooltip(event);
             const baseW = +this.getAttribute('data-base-width') || 1;
                 d3.select(this).attr('stroke', EDGE_HOVER_COLOR).attr('stroke-opacity',1).attr('stroke-width', Math.max(1, baseW + 2));
             // dim other links and subtly highlight related nodes (no resizing)
@@ -155,7 +189,7 @@
           .on('pointerleave', function(){
             tooltip.style.opacity=0;
             const baseW = +this.getAttribute('data-base-width') || 1;
-                d3.select(this).attr('stroke', EDGE_DEFAULT_COLOR).attr('stroke-opacity',0.8).attr('stroke-width', baseW);
+                d3.select(this).attr('stroke', (d)=> (colorScaleRelations(d.relation || '一般互动') || EDGE_DEFAULT_COLOR)).attr('stroke-opacity',0.8).attr('stroke-width', baseW);
             link.attr('stroke-opacity',0.8);
             nodeG.selectAll('g').select('circle').attr('opacity',1).attr('stroke-width',1.2);
           });
@@ -183,8 +217,8 @@
           // highlight
           node.select('circle').attr('opacity', n=> (n.id===d.id || neighbors.get(d.id).has(n.id)) ? 1 : 0.18);
               link.attr('stroke-opacity', l=> (l.source.id===d.id || l.target.id===d.id) ? 0.95 : 0.06)
-                .attr('stroke', l=> (l.source.id===d.id || l.target.id===d.id) ? NODE_HOVER_COLOR : EDGE_DEFAULT_COLOR);
-        }).on('pointermove', moveTooltip).on('pointerleave', ()=>{ tooltip.style.opacity=0; node.select('circle').attr('opacity',1); link.attr('stroke-opacity',0.8).attr('stroke','#9aa3ad'); });
+                .attr('stroke', l=> (l.source.id===d.id || l.target.id===d.id) ? NODE_HOVER_COLOR : (colorScaleRelations(l.relation || '一般互动')||EDGE_DEFAULT_COLOR));
+        }).on('pointermove', moveTooltip).on('pointerleave', ()=>{ tooltip.style.opacity=0; node.select('circle').attr('opacity',1); link.attr('stroke-opacity',0.8).attr('stroke', l=> (colorScaleRelations(l.relation || '一般互动')||EDGE_DEFAULT_COLOR)); });
 
         const simulation = d3.forceSimulation(nodes)
           // increase base distance so links are longer; slightly reduce influence of weight
@@ -216,15 +250,40 @@
 
         // filter and search
         function applyFilters(){
-          const q = searchInput.value.trim();
+          const q = searchInput.value.trim().toLowerCase();
           const thr = Number(threshold.value);
-          node.style('display', d=> q && !d.name.includes(q) ? 'none' : null);
-          link.style('display', d=> d.value < thr ? 'none' : null);
+          node.style('display', d=> q && !String(d.name).toLowerCase().includes(q) ? 'none' : null);
+          link.style('display', d=> (d.value < thr || !activeRelations.has(d.relation || '一般互动')) ? 'none' : null);
+          // update meta counts to reflect filtered links
+          const visibleLinks = links.filter(d=> (d.value >= thr && activeRelations.has(d.relation || '一般互动'))).length;
+          meta.textContent = `${playSelect.value} · 角色 ${entry.nodes.length}，关系 ${entry.links.length}（显示 ${visibleLinks} 条）`;
         }
 
         searchInput.addEventListener('input', applyFilters);
         threshold.addEventListener('input', ()=>{ applyFilters(); meta.textContent = `${playSelect.value} · 角色 ${entry.nodes.length}，关系 ${entry.links.length}（阈值 ${threshold.value}）`; });
-        resetBtn.addEventListener('click', ()=>{ searchInput.value=''; threshold.value=0; svg.transition().duration(300).call(d3.zoom().transform, d3.zoomIdentity); applyFilters(); });
+        resetBtn.addEventListener('click', ()=>{ searchInput.value=''; threshold.value=0; svg.transition().duration(300).call(d3.zoom().transform, d3.zoomIdentity); activeRelations = new Set(relationTypes); renderLegend(relationTypes, colorScaleRelations); applyFilters(); });
+
+        // helper: render legend
+        function renderLegend(types, colorScale){
+          const legendEl = document.getElementById('legend');
+          legendEl.innerHTML = '';
+          types.forEach(type=>{
+            const id = `rel-${type.replace(/\s+/g,'-')}`;
+            const label = document.createElement('label');
+            label.style.marginRight = '8px';
+            label.style.display = 'inline-flex';
+            label.style.alignItems = 'center';
+            const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = activeRelations.has(type); cb.id = id;
+            cb.addEventListener('change', ()=>{
+              if(cb.checked) activeRelations.add(type); else activeRelations.delete(type);
+              applyFilters();
+            });
+            const sw = document.createElement('span'); sw.style.display='inline-block'; sw.style.width='12px'; sw.style.height='12px'; sw.style.margin='0 6px'; sw.style.background = colorScale(type); sw.style.borderRadius='2px'; sw.style.border='1px solid rgba(0,0,0,0.08)';
+            const txt = document.createElement('span'); txt.textContent = type; txt.style.marginLeft='6px'; txt.style.color='var(--muted)'; txt.style.fontSize='12px';
+            label.appendChild(cb); label.appendChild(sw); label.appendChild(txt);
+            legendEl.appendChild(label);
+          });
+        }
 
         
       }
